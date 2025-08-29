@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>부엉이 잡기 🦉</title>
+  <style>
+    :root{
+      --bg:#0b1020; /* 밤하늘 */
+      --panel:#11192f;
+      --text:#e6ecff;
+      --accent:#8be9fd;
+      --good:#8aff80;
+      --warn:#ffb86b;
+      --bad:#ff6b6b;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 70% 10%,#1b2448 0%,#10162b 50%, var(--bg) 100%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Pretendard,Apple SD Gothic Neo,Noto Sans KR,sans-serif}
+    .wrap{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr auto;min-height:100vh}
+    header{display:flex;gap:.75rem;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,0));backdrop-filter:blur(6px);position:sticky;top:0;z-index:10}
+    header .title{font-weight:800;letter-spacing:.5px;display:flex;align-items:center;gap:.5rem}
+    header .title span.logo{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,#2a3160,#171e3c);box-shadow:0 6px 16px rgba(0,0,0,.35), inset 0 2px 6px rgba(255,255,255,.05)}
+    header .title h1{font-size:1.1rem;margin:0}
+    .hud{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .chip{padding:.35rem .6rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font-weight:700}
+    .chip.good{border-color:rgba(138,255,128,.4)}
+    .chip.bad{border-color:rgba(255,107,107,.4)}
+
+    main{display:grid;place-items:center;padding:10px}
+    .stage{width:min(100%,960px);aspect-ratio:16/9;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.12);border-radius:24px;position:relative;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.45)}
+    canvas{width:100%;height:100%;display:block}
+
+    .ui{position:absolute;inset:0;pointer-events:none}
+    .top-left,.top-right,.bottom-left,.bottom-right{position:absolute;margin:10px}
+    .top-left{top:0;left:0}
+    .top-right{top:0;right:0}
+    .bottom-left{bottom:0;left:0}
+    .bottom-right{bottom:0;right:0}
+
+    .btn{pointer-events:auto;cursor:pointer;padding:.65rem 1rem;border-radius:14px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.04));color:var(--text);font-weight:800;letter-spacing:.2px;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:.15s transform ease, .15s filter ease}
+    .btn:hover{transform:translateY(-1px)}
+    .btn:active{transform:translateY(1px)}
+
+    .center-modal{position:absolute;inset:0;display:grid;place-items:center;background:rgba(5,7,15,.45);backdrop-filter:blur(6px);pointer-events:auto}
+    .card{width:min(92%,560px);background:linear-gradient(180deg,var(--panel),#0f1730);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+    .card h2{margin:.2rem 0 0;font-size:1.3rem}
+    .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .row + .row{margin-top:10px}
+    .grow{flex:1}
+    .kbd{background:#0b1328;border:1px solid rgba(255,255,255,.1);padding:.2rem .45rem;border-radius:8px;font-weight:700}
+    .stat{display:grid;gap:2px}
+    .stat b{font-size:1.4rem}
+
+    .toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);padding:.45rem .8rem;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(10,16,35,.65);backdrop-filter:blur(4px);font-weight:700;opacity:0;transition:opacity .3s ease}
+    .toast.show{opacity:1}
+
+    footer{display:flex;justify-content:center;padding:12px;color:#a6b2d9;opacity:.75}
+    a{color:var(--accent);text-decoration:none}
+    .moon{position:absolute;right:3%;top:4%;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle at 30% 30%, #fff 0%, #d6e1ff 40%, #aab5dd 60%, #7f89b8 100%);box-shadow:0 0 40px rgba(210,220,255,.35)}
+    .mounts{position:absolute;left:-5%;right:-5%;bottom:-1%;height:40%;background:linear-gradient(180deg,rgba(0,0,0,0) 0%, rgba(8,12,25,.5) 30%, rgba(0,0,0,.8) 100%);}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title"><span class="logo">🦉</span><h1>부엉이 잡기</h1></div>
+      <div class="hud">
+        <div class="chip" id="scoreChip">점수: <b id="score">0</b></div>
+        <div class="chip" id="comboChip">콤보: <b id="combo">x1</b></div>
+        <div class="chip" id="timeChip">남은 시간: <b id="time">60</b>s</div>
+        <div class="chip" id="bestChip">최고 기록: <b id="best">0</b></div>
+      </div>
+    </header>
+
+    <main>
+      <div class="stage" id="stage">
+        <canvas id="game" aria-label="owl-catching game" role="img"></canvas>
+        <div class="ui" aria-hidden="true">
+          <div class="moon"></div>
+          <div class="mounts"></div>
+          <div class="top-right"><button class="btn" id="pauseBtn">⏸ 일시정지</button></div>
+          <div class="bottom-left"><button class="btn" id="soundBtn">🔈 효과음 켜기</button></div>
+          <div class="toast" id="toast">굿!</div>
+        </div>
+        <div class="center-modal" id="startModal">
+          <div class="card">
+            <div class="row"><div class="logo" style="font-size:2rem">🦉</div><h2>부엉이를 많이 잡아보세요!</h2></div>
+            <p class="row">화면을 <b>클릭/터치</b>해서 날아다니는 부엉이를 잡으면 점수를 얻습니다. 연속으로 빠르게 잡으면 <b>콤보 보너스</b>!</p>
+            <div class="row">
+              <div class="stat"><small>제한 시간</small><b>60초</b></div>
+              <div class="stat"><small>난이도</small><b id="diff">보통 → 어려움</b></div>
+              <div class="grow"></div>
+              <button class="btn" id="startBtn">▶ 시작</button>
+            </div>
+            <div class="row" style="opacity:.8;font-size:.95rem">
+              <span class="kbd">P</span> 일시정지 · <span class="kbd">M</span> 음소거/해제
+            </div>
+          </div>
+        </div>
+        <div class="center-modal" id="gameOver" style="display:none">
+          <div class="card">
+            <h2>게임 종료</h2>
+            <p class="row">당신의 점수: <b id="finalScore">0</b> · 최고 기록: <b id="finalBest">0</b></p>
+            <div class="row">
+              <button class="btn" id="restartBtn">↻ 다시하기</button>
+              <button class="btn" id="shareBtn">🔗 점수 공유</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>© 2025 Owl Studio · 키보드/터치 모두 지원</footer>
+  </div>
+
+  <script>
+  // ====== 유틸 ======
+  const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+  const rand=(a,b)=>Math.random()*(b-a)+a;
+  const pick=a=>a[(Math.random()*a.length)|0];
+
+  // ====== 캔버스 준비 (레티나 대응) ======
+  const canvas=document.getElementById('game');
+  const ctx=canvas.getContext('2d');
+  const stage=document.getElementById('stage');
+  function resize(){
+    const rect=stage.getBoundingClientRect();
+    const dpr=window.devicePixelRatio||1;
+    canvas.width=Math.floor(rect.width*dpr);
+    canvas.height=Math.floor(rect.height*dpr);
+    canvas.style.width=rect.width+'px';
+    canvas.style.height=rect.height+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  // ====== 게임 상태 ======
+  let owls=[]; // 부엉이 개체들
+  let particles=[]; // 파티클
+  let playing=false, paused=false, over=false;
+  let score=0, best=Number(localStorage.getItem('owl-best')||0);
+  let timeLeft=60; // 초
+  let lastSpawn=0, spawnInterval=850; // 난이도는 시간이 지날수록 빨라짐
+  let lastClickTime=0, combo=1, comboTimer=0; // 콤보 유지 타이머
+
+  // ====== UI 엘리먼트 ======
+  const scoreEl=document.getElementById('score');
+  const timeEl=document.getElementById('time');
+  const comboEl=document.getElementById('combo');
+  const bestEls=[document.getElementById('best'), document.getElementById('finalBest')];
+  const startModal=document.getElementById('startModal');
+  const overModal=document.getElementById('gameOver');
+  const finalScore=document.getElementById('finalScore');
+  const toast=document.getElementById('toast');
+
+  bestEls.forEach(el=>el.textContent=best);
+
+  // ====== 사운드 (WebAudio) ======
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let muted=true;
+  function beep(type='hit'){
+    if(muted) return;
+    const o=audioCtx.createOscillator();
+    const g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type='triangle';
+    const now=audioCtx.currentTime;
+    if(type==='hit'){
+      o.frequency.setValueAtTime(600,now);
+      o.frequency.exponentialRampToValueAtTime(1400, now+0.05);
+      g.gain.setValueAtTime(.15,now);
+      g.gain.exponentialRampToValueAtTime(.0001, now+0.15);
+    } else if(type==='bad'){
+      o.frequency.setValueAtTime(200,now);
+      o.frequency.exponentialRampToValueAtTime(80, now+0.2);
+      g.gain.setValueAtTime(.2,now);
+      g.gain.exponentialRampToValueAtTime(.0001, now+0.25);
+    } else if(type==='tick'){
+      o.frequency.setValueAtTime(1100,now);
+      o.frequency.exponentialRampToValueAtTime(300, now+0.03);
+      g.gain.setValueAtTime(.06,now);
+      g.gain.exponentialRampToValueAtTime(.0001, now+0.09);
+    }
+    o.start();
+    o.stop(audioCtx.currentTime+0.3);
+  }
+
+  const soundBtn=document.getElementById('soundBtn');
+  soundBtn.addEventListener('click',()=>{
+    muted=!muted;
+    if(!muted){ audioCtx.resume?.(); beep('tick'); }
+    soundBtn.textContent= muted? '🔈 효과음 켜기' : '🔊 효과음 끄기';
+  });
+
+  // ====== 부엉이 클래스 ======
+  class Owl{
+    constructor(){
+      const {width:w,height:h}=canvas.getBoundingClientRect();
+      const side=Math.random()<.5?'left':'right';
+      const y=rand(0.1*h, 0.8*h);
+      const speed=rand(120, 260);
+      const vx=(side==='left'?1:-1)*speed;
+      const x= side==='left' ? -60 : w+60;
+      const size=rand(24, 44); // 폰트 px
+      const rot=rand(-0.3,0.3);
+      this.x=x; this.y=y; this.vx=vx; this.vy=rand(-20,20);
+      this.size=size; this.rot=rot; this.dead=false; this.t=0;
+      this.flip= side==='right';
+    }
+    step(dt){
+      this.t+=dt;
+      // 살짝 위아래 파동
+      this.y += Math.sin(this.t*3.2)*12*dt + this.vy*dt*0.2;
+      this.x += this.vx*dt;
+      // 화면 밖이면 제거 표시
+      const {width:w,height:h}=canvas.getBoundingClientRect();
+      if(this.x < -100 || this.x> w+100){this.dead=true}
+    }
+    draw(){
+      ctx.save();
+      ctx.translate(this.x,this.y);
+      ctx.rotate(this.rot + Math.sin(this.t*2)*0.05);
+      if(this.flip){ ctx.scale(-1,1); }
+      ctx.font=`${this.size}px \"Apple Color Emoji\", \"Segoe UI Emoji\", Noto Color Emoji, system-ui`;
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('🦉',0,0);
+      ctx.restore();
+    }
+    hit(mx,my){
+      const r=this.size*0.6;
+      const dx=mx-this.x, dy=my-this.y;
+      return dx*dx+dy*dy <= r*r;
+    }
+  }
+
+  // ====== 파티클 ======
+  class Particle{
+    constructor(x,y){
+      this.x=x; this.y=y; this.vx=rand(-160,160); this.vy=rand(-220, -80);
+      this.g=520; this.t=0; this.life=rand(.5,.8);
+      this.emoji=pick(['✨','🌟','💫','🪶']);
+      this.size=rand(16,22);
+    }
+    step(dt){
+      this.t+=dt;
+      this.vy += this.g*dt;
+      this.x += this.vx*dt; this.y += this.vy*dt;
+    }
+    draw(){
+      const a=clamp(1-this.t/this.life,0,1);
+      if(a<=0) return this.dead=true;
+      ctx.save(); ctx.globalAlpha=a;
+      ctx.font=`${this.size}px \"Apple Color Emoji\", \"Segoe UI Emoji\"`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(this.emoji,this.x,this.y);
+      ctx.restore();
+    }
+  }
+
+  // ====== 입력 처리 ======
+  function canvasPos(e){
+    const rect=canvas.getBoundingClientRect();
+    const x=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+    const y=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+    return {x,y};
+  }
+  function handlePress(e){
+    if(!playing||paused) return;
+    const {x,y}=canvasPos(e);
+    // 가장 앞쪽(최근) 부엉이부터 판정
+    for(let i=owls.length-1;i>=0;i--){
+      const o=owls[i];
+      if(o.hit(x,y)){
+        // 명중 처리
+        o.dead=true;
+        for(let j=0;j<10;j++) particles.push(new Particle(o.x,o.y));
+
+        const now=performance.now();
+        const delta=now-lastClickTime;
+        lastClickTime=now;
+        if(delta<650){ combo=Math.min(combo+1, 10); comboTimer=2.2; } else { combo=1; comboTimer=1.6; }
+        const add = 10*combo;
+        score+=add; scoreEl.textContent=score; comboEl.textContent='x'+combo;
+        flashToast(`+${add} 점!`);
+        beep('hit');
+        break;
+      }
+    }
+  }
+  canvas.addEventListener('mousedown',handlePress);
+  canvas.addEventListener('touchstart',e=>{e.preventDefault(); handlePress(e);},{passive:false});
+
+  // ====== 토스트 ======
+  let toastTimer=0; let toastShown=false;
+  function flashToast(text){
+    toast.textContent=text; toast.classList.add('show');
+    toastShown=true; toastTimer=0;
+  }
+
+  // ====== 게임 루프 ======
+  let last=performance.now();
+  function loop(now){
+    const dt=Math.min((now-last)/1000, 0.033); last=now;
+    requestAnimationFrame(loop);
+    if(!playing||paused) return draw();
+
+    // 시간
+    timeLeft = Math.max(0, timeLeft - dt);
+    timeEl.textContent = timeLeft.toFixed(0);
+    if(timeLeft<=0){ return endGame(); }
+    if(timeLeft<=10){ if(Math.floor(now/500)%2===0) beep('tick'); }
+
+    // 난이도 스케일: 시간이 갈수록 스폰 빨라지고 속도 증가
+    if(now - lastSpawn > spawnInterval){
+      lastSpawn=now;
+      for(let i=0;i<Math.ceil(rand(1,2.2));i++) owls.push(new Owl());
+      // 스폰 텀 점점 축소, 하한 300ms
+      spawnInterval = Math.max(300, spawnInterval - 4);
+    }
+
+    // 콤보 타이머
+    if(comboTimer>0){ comboTimer -= dt; } else { combo=1; comboEl.textContent='x1'; }
+
+    // 스텝
+    owls.forEach(o=>o.step(dt));
+    particles.forEach(p=>p.step(dt));
+
+    // 제거
+    owls = owls.filter(o=>!o.dead);
+    particles = particles.filter(p=>!p.dead);
+
+    draw();
+  }
+  requestAnimationFrame(loop);
+
+  // ====== 그리기 ======
+  function draw(){
+    const {width:w,height:h}=canvas.getBoundingClientRect();
+    ctx.clearRect(0,0,w,h);
+
+    // 먼 별들
+    ctx.globalAlpha=0.6; ctx.fillStyle='#cdd6ff';
+    for(let i=0;i<40;i++){
+      const x=(i*73%w), y=(i*127%h);
+      ctx.fillRect((x+Math.sin(performance.now()/600+i)*2)|0, y, 2, 2);
+    }
+    ctx.globalAlpha=1;
+
+    // 부엉이 & 파티클
+    owls.forEach(o=>o.draw());
+    particles.forEach(p=>p.draw());
+
+    // 콤보 텍스트 미묘한 표시
+    if(combo>1){
+      ctx.save();
+      ctx.globalAlpha=0.6; ctx.font='bold 22px system-ui, sans-serif'; ctx.fillStyle='#8be9fd';
+      ctx.fillText('콤보 x'+combo, 12, 28);
+      ctx.restore();
+    }
+
+    // 토스트 페이드
+    if(toastShown){
+      toastTimer+=1/60;
+      if(toastTimer>1.2){ toast.classList.remove('show'); toastShown=false; }
+    }
+  }
+
+  // ====== 컨트롤 ======
+  const startBtn=document.getElementById('startBtn');
+  const restartBtn=document.getElementById('restartBtn');
+  const pauseBtn=document.getElementById('pauseBtn');
+  const shareBtn=document.getElementById('shareBtn');
+
+  function startGame(){
+    playing=true; paused=false; over=false; score=0; scoreEl.textContent=0; combo=1; comboEl.textContent='x1';
+    timeLeft=60; owls.length=0; particles.length=0; spawnInterval=850; lastSpawn=0; lastClickTime=0; comboTimer=0;
+    startModal.style.display='none'; overModal.style.display='none';
+  }
+  function endGame(){
+    playing=false; over=true; overModal.style.display='grid';
+    finalScore.textContent=score;
+    if(score>best){ best=score; localStorage.setItem('owl-best', String(best)); bestEls.forEach(el=>el.textContent=best); }
+  }
+  function togglePause(force){
+    if(!playing||over) return;
+    paused = typeof force==='boolean'? force : !paused;
+    pauseBtn.textContent = paused? '▶ 계속' : '⏸ 일시정지';
+  }
+
+  startBtn.addEventListener('click',()=>{startGame(); beep('tick')});
+  restartBtn.addEventListener('click',()=>{startGame(); beep('tick')});
+  pauseBtn.addEventListener('click',()=>togglePause());
+
+  document.addEventListener('keydown',e=>{
+    if(e.key==='p' || e.key==='P'){ togglePause(); }
+    if(e.key==='m' || e.key==='M'){ soundBtn.click(); }
+  });
+
+  shareBtn.addEventListener('click',async()=>{
+    const text=`🦉 부엉이 잡기에서 ${score}점을 기록했어요! 도전해보세요!`;
+    const url=location.href;
+    if(navigator.share){ try{ await navigator.share({title:'부엉이 잡기', text, url}); }catch{} }
+    else { await navigator.clipboard.writeText(text+' '+url); flashToast('클립보드에 복사됨'); }
+  });  // 첫 로드 토스트
+  setTimeout(()=>flashToast('화면을 클릭/터치해 잡아보세요!'), 800);
+  </script>
+</body>
+</html>
